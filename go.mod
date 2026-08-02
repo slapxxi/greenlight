@@ -1,5 +1,5 @@
 module github.com/slapxxi/greenlight
 
-go 1.25.5
+go 1.22.12
 
-require github.com/julienschmidt/httprouter v1.3.0 // indirect
+require github.com/julienschmidt/httprouter v1.3.0
