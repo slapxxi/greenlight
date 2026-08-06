@@ -15,7 +15,7 @@ func (a *application) createMovieHandler(w http.ResponseWriter, r *http.Request)
 func (a *application) showMovieHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := a.readIdParam(r)
 	if err != nil {
-		http.NotFound(w, r)
+		a.notFoundResponse(w, r)
 		return
 	}
 
@@ -30,8 +30,7 @@ func (a *application) showMovieHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err = a.writeJSON(w, http.StatusOK, envelope{"movie": movie}, nil)
 	if err != nil {
-		a.logger.Print(err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		a.serverErrorResponse(w, r, err)
 		return
 	}
 }
