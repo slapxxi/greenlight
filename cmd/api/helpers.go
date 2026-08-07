@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -41,12 +42,18 @@ func (a *application) writeJSON(w http.ResponseWriter, status int, data envelope
 	return nil
 }
 
+const maxBytes = 1_048_576
+
 func (a *application) readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
-	err := json.NewDecoder(r.Body).Decode(dst)
+	r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	err := dec.Decode(dst)
 	if err != nil {
 		var syntaxError *json.SyntaxError
 		var unmarshalTypeError *json.UnmarshalTypeError
 		var invalidUnmarshalError *json.InvalidUnmarshalError
+		var maxBytesError *http.MaxBytesError
 
 		switch {
 		case errors.As(err, &syntaxError):
@@ -60,11 +67,21 @@ func (a *application) readJSON(w http.ResponseWriter, r *http.Request, dst any) 
 			return fmt.Errorf("body contains incorrect JSON type (at character %d)", unmarshalTypeError.Offset)
 		case errors.Is(err, io.EOF):
 			return errors.New("body must not be empty")
+		case strings.HasPrefix(err.Error(), "json: unknown field"):
+			fieldName := strings.TrimPrefix(err.Error(), "json: unknown field ")
+			return fmt.Errorf("body contains unknown field %q", fieldName)
+		case errors.As(err, &maxBytesError):
+			return fmt.Errorf("body exceeds the maximum allowed size of %d bytes", maxBytes)
 		case errors.As(err, &invalidUnmarshalError):
 			panic(err)
 		default:
 			return err
 		}
+	}
+
+	err = dec.Decode(dst)
+	if err != io.EOF {
+		return errors.New("body contains trailing data")
 	}
 
 	return nil
