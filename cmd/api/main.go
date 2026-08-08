@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -18,6 +16,7 @@ type config struct {
 	port int
 	env  string
 	db   struct {
+		// dsn is a connection string to the database
 		dsn          string
 		maxOpenConns int
 		maxIdleConns int
@@ -30,6 +29,7 @@ type application struct {
 	logger *log.Logger
 }
 
+// NewServer returns a new HTTP server configured with the application
 func (a *application) NewServer() *http.Server {
 	return &http.Server{
 		Addr:         fmt.Sprintf(":%d", a.config.port),
@@ -61,30 +61,4 @@ func main() {
 	l.Printf("Starting %s server on port %s", cfg.env, server.Addr)
 	err = server.ListenAndServe()
 	l.Fatal(err)
-}
-
-func openDB(cfg config) (*sql.DB, error) {
-	db, err := sql.Open("postgres", cfg.db.dsn)
-	if err != nil {
-		return nil, err
-	}
-
-	db.SetMaxOpenConns(cfg.db.maxOpenConns)
-	db.SetMaxIdleConns(cfg.db.maxIdleConns)
-
-	duration, err := time.ParseDuration(cfg.db.maxIdleTime)
-	if err != nil {
-		return nil, err
-	}
-	db.SetConnMaxIdleTime(duration)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err = db.PingContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return db, nil
 }
