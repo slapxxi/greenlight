@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/slapxxi/greenlight/internal/data"
 )
 
 const version = "0.0.1"
@@ -27,6 +28,7 @@ type config struct {
 type application struct {
 	config config
 	logger *log.Logger
+	models data.Models
 }
 
 // NewServer returns a new HTTP server configured with the application
@@ -56,7 +58,9 @@ func main() {
 	app := &application{
 		config: cfg,
 		logger: l,
+		models: data.NewModels(db),
 	}
+
 	server := app.NewServer()
 	l.Printf("Starting %s server on port %s", cfg.env, server.Addr)
 	err = server.ListenAndServe()

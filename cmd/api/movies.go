@@ -1,9 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/slapxxi/greenlight/internal/data"
 	"github.com/slapxxi/greenlight/internal/validator"
@@ -35,7 +35,20 @@ func (a *application) createMovieHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	fmt.Fprintf(w, "%+v\n", input)
+	err = a.models.Movie.Insert(movie)
+	if err != nil {
+		a.serverErrorResponse(w, r, err)
+		return
+	}
+
+	headers := make(http.Header)
+	headers.Set("Location", fmt.Sprintf("/v1/movies/%d", movie.ID))
+
+	err = a.writeJSON(w, http.StatusCreated, envelope{"movie": movie}, headers)
+	if err != nil {
+		a.serverErrorResponse(w, r, err)
+		return
+	}
 }
 
 func (a *application) showMovieHandler(w http.ResponseWriter, r *http.Request) {
@@ -44,17 +57,22 @@ func (a *application) showMovieHandler(w http.ResponseWriter, r *http.Request) {
 		a.notFoundResponse(w, r)
 		return
 	}
-
-	movie := data.Movie{
-		ID:        id,
-		CreatedAt: time.Now(),
-		Genres:    []string{"drama", "comedy"},
-		Runtime:   120,
-		Title:     "The Matrix",
-		Version:   1,
-		Year:      1999,
+	movie, err := a.models.Movie.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			a.notFoundResponse(w, r)
+			return
+		default:
+			a.serverErrorResponse(w, r, err)
+			return
+		}
 	}
-	err = a.writeJSON(w, http.StatusOK, envelope{"movie": movie}, nil)
+
+	headers := make(http.Header)
+	headers.Set("ETag", fmt.Sprintf("%d", movie.Version))
+
+	err = a.writeJSON(w, http.StatusOK, envelope{"movie": movie}, headers)
 	if err != nil {
 		a.serverErrorResponse(w, r, err)
 		return
