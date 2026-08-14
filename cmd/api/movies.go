@@ -4,10 +4,26 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/slapxxi/greenlight/internal/data"
 	"github.com/slapxxi/greenlight/internal/validator"
 )
+
+func (a *application) moviesHandler(w http.ResponseWriter, r *http.Request) {
+	movies := make([]data.Movie, 0)
+	err := a.models.Movie.GetAll(&movies)
+	if err != nil {
+		a.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = a.writeJSON(w, http.StatusOK, envelope{"movies": movies}, nil)
+	if err != nil {
+		a.serverErrorResponse(w, r, err)
+		return
+	}
+}
 
 func (a *application) createMovieHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
@@ -98,6 +114,13 @@ func (a *application) updateMovieHandler(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	if r.Header.Get("X-Expected-Version") != "" {
+		if strconv.FormatInt(int64(movie.Version), 32) != r.Header.Get("X-Expected-Version") {
+			a.editConflictResponse(w, r)
+			return
+		}
+	}
+
 	var input struct {
 		Title   *string       `json:"title"`
 		Year    *int32        `json:"year"`
@@ -131,8 +154,14 @@ func (a *application) updateMovieHandler(w http.ResponseWriter, r *http.Request)
 
 	err = a.models.Movie.Update(movie)
 	if err != nil {
-		a.serverErrorResponse(w, r, err)
-		return
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			a.editConflictResponse(w, r)
+			return
+		default:
+			a.serverErrorResponse(w, r, err)
+			return
+		}
 	}
 
 	err = a.writeJSON(w, http.StatusOK, envelope{"movie": movie}, nil)
