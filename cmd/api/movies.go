@@ -11,18 +11,25 @@ import (
 )
 
 func (a *application) moviesHandler(w http.ResponseWriter, r *http.Request) {
-	movies := make([]data.Movie, 0)
-	err := a.models.Movie.GetAll(&movies)
-	if err != nil {
-		a.serverErrorResponse(w, r, err)
+	var input struct {
+		Title  string
+		Genres []string
+		data.Filters
+	}
+	v := validator.New()
+	qs := r.URL.Query()
+	input.Title = a.readString(qs, "title", "")
+	input.Genres = a.readCSV(qs, "genres", []string{})
+	input.Filters.Page = a.readInt(qs, "page", 1, v)
+	input.Filters.PageSize = a.readInt(qs, "page_size", 20, v)
+	input.Filters.Sort = a.readString(qs, "sort", "id")
+
+	if !v.Valid() {
+		a.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	err = a.writeJSON(w, http.StatusOK, envelope{"movies": movies}, nil)
-	if err != nil {
-		a.serverErrorResponse(w, r, err)
-		return
-	}
+	fmt.Fprintf(w, "input: %+v\n", input)
 }
 
 func (a *application) createMovieHandler(w http.ResponseWriter, r *http.Request) {
